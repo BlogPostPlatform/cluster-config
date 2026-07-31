@@ -1,4 +1,112 @@
-name: deploy-frontend.yml
+name: Frontend Infrastructure Pipeline
+
 on:
+  push:
+    branches:
+      - main
+
+    paths:
+      - 'frontend/prod/kustomization.yml'
+
+  workflow_dispatch:
 
 jobs:
+
+  validate:
+    name: Validate Kubernetes Manifests
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Render kustomize locally (no cluster access)
+      - name: Render manifests (kustomize)
+        run: |
+          kubectl kustomize frontend/prod > /tmp/manifests.yaml
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+            | tar -xz -C /usr/local/bin kubeconform
+
+          kubeconform -v
+
+      - name: Validate manifests (kubeconform)
+        run: |
+          # -strict: catch missing required fields
+          # -ignore-missing-schemas:
+          # don’t fail on CRDs/custom resources unless schemas are provided
+          kubeconform \
+            -strict \
+            -ignore-missing-schemas \
+            -summary \
+            /tmp/manifests.yaml
+
+
+  scan:
+    name: Security Scan Kubernetes Manifests
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Render manifests (kustomize)
+        run: |
+          kubectl kustomize frontend/prod > /tmp/manifests.yaml
+
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: /tmp/manifests.yaml
+          format: table
+          exit-code: 0
+
+
+  deploy:
+    name: Deploy Frontend to K3s Cluster
+
+    runs-on: ubuntu-latest
+
+    needs:
+      - validate
+      - scan
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+
+      - name: Show diff
+        run: |
+          kubectl diff -k frontend/prod || true
+
+      - name: Render secrets
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+
+        run: |
+          cp -r frontend/prod /tmp/frontend-prod
+
+          find /tmp/frontend-prod -type f -name "*.yml" -exec sh -c '
+            envsubst < "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+          ' _ {} \;
+
+      - name: Deploy frontend stack
+        run: |
+          kubectl apply -k /tmp/frontend-prod
+
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/lms-frontend-deployment -n lms --timeout=120s

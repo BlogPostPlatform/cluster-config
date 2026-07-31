@@ -1,4 +1,141 @@
-name: deploy-backend.yaml
+name: Backend Infrastructure Pipeline
+
 on:
+  push:
+    branches:
+      - main
+
+    paths:
+      - 'backend/prod/kustomization.yml'
+
+  workflow_dispatch:
 
 jobs:
+
+  validate:
+    name: Validate Kubernetes Manifests
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Render manifests (kustomize)
+        run: |
+          kubectl kustomize backend/prod > /tmp/manifests.yaml
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+            | tar -xz -C /usr/local/bin kubeconform
+
+      - name: Validate manifests (kubeconform)
+        run: |
+          kubeconform \
+            -strict \
+            -ignore-missing-schemas \
+            -summary \
+            /tmp/manifests.yaml
+
+
+  scan:
+    name: Security Scan Kubernetes Manifests
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Render manifests (kustomize)
+        run: |
+          kubectl kustomize backend/prod > /tmp/manifests.yaml
+
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: /tmp/manifests.yaml
+          format: table
+          exit-code: 0
+
+
+  deploy:
+    name: Deploy to K3s Cluster
+
+    environment: prod
+
+    runs-on: ubuntu-latest
+
+    needs:
+      - validate
+      - scan
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+
+      - name: Show diff
+        run: |
+          kubectl diff -k backend/prod || true
+
+      - name: Render secrets
+        env:
+          DJANGO_ENV: ${{ vars.DJANGO_ENV }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DEBUG: ${{ vars.DEBUG }}
+
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+
+          EMAIL_BACKEND: ${{ secrets.EMAIL_BACKEND }}
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+          EMAIL_USE_TLS: ${{ secrets.EMAIL_USE_TLS }}
+          EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
+
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+
+          DOMAIN_URL: ${{ vars.DOMAIN_URL }}
+          ENROL_LINK_URL: ${{ vars.ENROL_LINK_URL }}
+
+          USE_S3: ${{ vars.USE_S3 }}
+          USE_S3_FOR_STATIC: ${{ vars.USE_S3_FOR_STATIC }}
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          S3_REGION: ${{ secrets.S3_REGION }}
+
+          FILE_LOGGING_ENABLED: ${{ vars.FILE_LOGGING_ENABLED }}
+
+        run: |
+          cp -r backend/prod /tmp/backend-prod
+
+          find /tmp/backend-prod -type f -name "*.yml" -exec sh -c '
+            envsubst < "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+          ' _ {} \;
+
+      - name: Deploy backend stack
+        run: |
+          kubectl apply -k /tmp/backend-prod
+
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/lms-backend-deployment -n lms --timeout=180s

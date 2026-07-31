@@ -15,10 +15,15 @@ spec:
         component: beat
     spec:
       containers:
-        - name: beat
-          image: busybox:1.36
+        - name: celery-beat
+          image: backend-image
           imagePullPolicy: IfNotPresent
-          command:
-            - sh
-            - -c
-            - sleep 3600
+          
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+
+            limits:
+              memory: "256Mi"
+              cpu: "400m"
