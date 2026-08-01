@@ -18,6 +18,7 @@ spec:
         - name: celery-beat
           image: backend-image
           imagePullPolicy: IfNotPresent
+          args: ["/app/entrypoints/beat.sh"]
           
           resources:
             requests:

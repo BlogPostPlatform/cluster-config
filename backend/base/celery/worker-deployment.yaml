@@ -18,6 +18,7 @@ spec:
         - name: celery-worker
           image: backend-image
           imagePullPolicy: IfNotPresent
+          args: ["/app/entrypoints/worker.sh"]
           resources:
             requests:
               memory: "128Mi"
