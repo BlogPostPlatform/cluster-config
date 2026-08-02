@@ -1,7 +1,10 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: db
+  name: postgres
+  namespace: blog
+  labels:
+    app: db
 spec:
   serviceName: db-service
   replicas: 1

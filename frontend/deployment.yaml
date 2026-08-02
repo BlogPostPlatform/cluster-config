@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: title
+  namespace: blog
   labels:
     app: title
 spec:
@@ -15,6 +16,7 @@ spec:
       labels:
         app: title
     spec:
+      serviceAccountName: blog-post-service-account
       containers:
         - name: title
           image: nginx
