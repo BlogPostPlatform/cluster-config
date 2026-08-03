@@ -9,4 +9,4 @@ patches:
 
 images:
 - name: backend-image
-  newTag: 40a3009fecc0ab74dd341978ee9f37ddf8771742
+  newTag: sha-44613968c91f01779a14c6937af0919570edbcca
