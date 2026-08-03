@@ -15,7 +15,7 @@ spec:
         app: celery
         component: worker
     spec:
-      serviceAccountName: blog-post-service-account
+      serviceAccountName: blog-backend
       containers:
         - name: celery-worker
           image: backend-image

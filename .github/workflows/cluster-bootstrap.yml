@@ -1,0 +1,82 @@
+name: Initial Cluster Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: Cluster environment to bootstrap
+        type: environment
+        required: true
+      confirm_bootstrap:
+        description: Apply the cluster prerequisite manifests
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cluster-bootstrap-${{ inputs.target_environment }}
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: Apply ${{ inputs.target_environment }} Prerequisites
+    if: ${{ inputs.confirm_bootstrap }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ inputs.target_environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$KUBECONFIG_CONTENT" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Render cluster prerequisites
+        run: kubectl kustomize . > /tmp/cluster-prerequisites.yaml
+
+      - name: Show changes
+        run: kubectl diff -f /tmp/cluster-prerequisites.yaml || true
+
+      - name: Apply cluster prerequisites
+        run: kubectl apply -f /tmp/cluster-prerequisites.yaml
+
+      - name: Wait for reviewer token
+        run: |
+          kubectl wait \
+            --for=jsonpath='{.data.token}' \
+            secret/vault-token-reviewer \
+            --namespace=vault-auth \
+            --timeout=60s
+
+      - name: Verify reviewer authorization
+        run: |
+          result="$(kubectl auth can-i \
+            create tokenreviews.authentication.k8s.io \
+            --as=system:serviceaccount:vault-auth:vault-token-reviewer)"
+
+          test "$result" = "yes"
+
+      - name: Write summary
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
+        run: |
+          {
+            echo "## $TARGET_ENVIRONMENT cluster bootstrap completed"
+            echo
+            echo '- Root Kubernetes prerequisites were reconciled.'
+            echo '- The Vault reviewer Secret is populated.'
+            echo '- The reviewer can create TokenReview requests.'
+            echo '- No reviewer JWT was read or printed by this workflow.'
+          } >> "$GITHUB_STEP_SUMMARY"

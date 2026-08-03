@@ -16,7 +16,7 @@ spec:
       labels:
         app: title
     spec:
-      serviceAccountName: blog-post-service-account
+      automountServiceAccountToken: false
       containers:
         - name: title
           image: nginx
@@ -25,4 +25,3 @@ spec:
             - containerPort: 80
               protocol: TCP
       restartPolicy: Always
-      

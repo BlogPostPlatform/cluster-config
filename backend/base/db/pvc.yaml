@@ -4,7 +4,6 @@ metadata:
   name: db-pvc
   namespace: blog
 spec:
-  serviceAccountName: blog-post-service-account
   accessModes:
     - ReadWriteOnce
   resources:

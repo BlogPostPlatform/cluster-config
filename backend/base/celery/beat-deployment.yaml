@@ -15,7 +15,7 @@ spec:
         app: celery
         component: beat
     spec:
-      serviceAccountName: blog-post-service-account
+      serviceAccountName: blog-backend
       containers:
         - name: celery-beat
           image: backend-image

@@ -13,7 +13,7 @@ spec:
       labels:
         app: redis
     spec:
-      serviceAccountName: blog-post-service-account
+      automountServiceAccountToken: false
       containers:
         - name: redis
           image: redis:7-alpine
