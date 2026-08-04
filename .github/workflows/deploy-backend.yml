@@ -6,10 +6,14 @@ on:
       - main
 
     paths:
-      - 'backend/overlays/*/kustomization.yml'
+      - 'backend/overlays/**/kustomization.yml'
 
   workflow_dispatch:
-
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: environment
 jobs:
 
   validate:
@@ -23,7 +27,7 @@ jobs:
 
       - name: Render manifests (kustomize)
         run: |
-          kubectl kustomize backend/prod > /tmp/manifests.yaml
+          kubectl kustomize backend/overlays/${{ github.event.inputs.environment }} > /tmp/manifests.yaml
 
       - name: Install kubeconform
         run: |
@@ -50,7 +54,7 @@ jobs:
 
       - name: Render manifests (kustomize)
         run: |
-          kubectl kustomize backend/prod > /tmp/manifests.yaml
+          kubectl kustomize backend/overlays/${{ inputs.environment }} > /tmp/manifests.yaml
 
       - name: Run Trivy config scan
         uses: aquasecurity/trivy-action@v0.36.0
@@ -86,47 +90,10 @@ jobs:
 
       - name: Show diff
         run: |
-          kubectl diff -k backend/prod || true
+          kubectl diff -k backend/overlays/${{ inputs.environment }} || true
 
-      - name: Render secrets
-        env:
-          DJANGO_ENV: ${{ vars.DJANGO_ENV }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          DEBUG: ${{ vars.DEBUG }}
-
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
-          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-          REDIS_HOST: ${{ secrets.REDIS_HOST }}
-          REDIS_PORT: ${{ secrets.REDIS_PORT }}
-
-          EMAIL_BACKEND: ${{ secrets.EMAIL_BACKEND }}
-          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
-          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
-          EMAIL_USE_TLS: ${{ secrets.EMAIL_USE_TLS }}
-          EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
-          EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
-
-          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
-
-          DOMAIN_URL: ${{ vars.DOMAIN_URL }}
-          ENROL_LINK_URL: ${{ vars.ENROL_LINK_URL }}
-
-          USE_S3: ${{ vars.USE_S3 }}
-          USE_S3_FOR_STATIC: ${{ vars.USE_S3_FOR_STATIC }}
-          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
-          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
-          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-          S3_REGION: ${{ secrets.S3_REGION }}
-
-          FILE_LOGGING_ENABLED: ${{ vars.FILE_LOGGING_ENABLED }}
-
-        run: |
-          cp -r backend/prod /tmp/backend-prod
+      -  run: |
+          cp -r backend/overlays/${{ inputs.environment }} /tmp/backend-prod
 
           find /tmp/backend-prod -type f -name "*.yml" -exec sh -c '
             envsubst < "$1" > "$1.tmp" && mv "$1.tmp" "$1"
@@ -138,4 +105,4 @@ jobs:
 
       - name: Verify rollout
         run: |
-          kubectl rollout status deployment/lms-backend-deployment -n lms --timeout=180s
+          kubectl rollout status deployment/backend -n blog --timeout=180s
