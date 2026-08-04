@@ -1,112 +1,186 @@
-name: Frontend Infrastructure Pipeline
+name: Deploy frontend
 
 on:
   push:
     branches:
       - main
-
     paths:
-      - 'frontend/prod/kustomization.yml'
-
+      - "frontend/overlays/*/kustomization.yaml"
   workflow_dispatch:
+    inputs:
+      target_environment:
+        description: Existing frontend overlay to reconcile
+        required: true
+        type: choice
+        options:
+          - dev
+          - stage
+          - prod
+
+permissions:
+  contents: read
 
 jobs:
+  resolve:
+    name: Resolve target environment
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.target.outputs.environments }}
+    steps:
+      - name: Check out repository
+        if: github.event_name == 'push'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve changed overlay
+        id: target
+        shell: bash
+        env:
+          REQUESTED_ENVIRONMENT: ${{ inputs.target_environment }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            targets=("$REQUESTED_ENVIRONMENT")
+          else
+            if [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
+              changed_files="$(git show --pretty='' --name-only "$GITHUB_SHA")"
+            else
+              changed_files="$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA")"
+            fi
+
+            mapfile -t targets < <(
+              printf '%s\n' "$changed_files" |
+                sed -nE 's#^frontend/overlays/(dev|stage|prod)/kustomization\.yaml$#\1#p' |
+                sort -u
+            )
+
+            if [[ "${#targets[@]}" -eq 0 ]]; then
+              echo "No changed frontend overlay was found." >&2
+              exit 1
+            fi
+          fi
+
+          for target in "${targets[@]}"; do
+            case "$target" in
+              dev|stage|prod) ;;
+              *) echo "Unsupported environment: $target" >&2; exit 1 ;;
+            esac
+          done
+
+          environments="$(printf '%s\n' "${targets[@]}" | jq --raw-input . | jq --slurp --compact-output .)"
+          echo "environments=$environments" >> "$GITHUB_OUTPUT"
 
   validate:
-    name: Validate Kubernetes Manifests
-
+    name: Validate ${{ matrix.environment }} manifests
+    needs: resolve
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.resolve.outputs.environments) }}
+    env:
+      OVERLAY_PATH: frontend/overlays/${{ matrix.environment }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      # Render kustomize locally (no cluster access)
-      - name: Render manifests (kustomize)
-        run: |
-          kubectl kustomize frontend/prod > /tmp/manifests.yaml
+      - name: Render manifests
+        run: kubectl kustomize "$OVERLAY_PATH" > rendered-frontend.yaml
 
       - name: Install kubeconform
         run: |
-          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
-            | tar -xz -C /usr/local/bin kubeconform
+          curl --fail --silent --show-error --location \
+            https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz \
+            | sudo tar --extract --gzip --directory /usr/local/bin kubeconform
 
-          kubeconform -v
-
-      - name: Validate manifests (kubeconform)
+      - name: Validate manifests
         run: |
-          # -strict: catch missing required fields
-          # -ignore-missing-schemas:
-          # don’t fail on CRDs/custom resources unless schemas are provided
           kubeconform \
             -strict \
             -ignore-missing-schemas \
             -summary \
-            /tmp/manifests.yaml
-
+            rendered-frontend.yaml
 
   scan:
-    name: Security Scan Kubernetes Manifests
-
+    name: Scan ${{ matrix.environment }} manifests
+    needs: resolve
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.resolve.outputs.environments) }}
+    env:
+      OVERLAY_PATH: frontend/overlays/${{ matrix.environment }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: Render manifests (kustomize)
-        run: |
-          kubectl kustomize frontend/prod > /tmp/manifests.yaml
+      - name: Render manifests
+        run: kubectl kustomize "$OVERLAY_PATH" > rendered-frontend.yaml
 
-      - name: Run Trivy config scan
-        uses: aquasecurity/trivy-action@v0.36.0
+      - name: Scan Kubernetes configuration
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
-          scan-ref: /tmp/manifests.yaml
+          scan-ref: rendered-frontend.yaml
+          severity: HIGH,CRITICAL
           format: table
-          exit-code: 0
-
+          exit-code: "0"
 
   deploy:
-    name: Deploy Frontend to K3s Cluster
-
-    runs-on: ubuntu-latest
-
+    name: Deploy frontend to ${{ matrix.environment }}
     needs:
+      - resolve
       - validate
       - scan
-
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.resolve.outputs.environments) }}
+    environment:
+      name: ${{ matrix.environment }}
+    concurrency:
+      group: frontend-${{ matrix.environment }}
+      cancel-in-progress: false
+    env:
+      OVERLAY_PATH: frontend/overlays/${{ matrix.environment }}
+      TARGET_NAMESPACE: blog-${{ matrix.environment }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: Setup kubectl
+      - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
       - name: Configure kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
-
-      - name: Show diff
-        run: |
-          kubectl diff -k frontend/prod || true
-
-      - name: Render secrets
         env:
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
-
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
         run: |
-          cp -r frontend/prod /tmp/frontend-prod
+          test -n "$KUBECONFIG_CONTENT"
+          install -d -m 700 "$HOME/.kube"
+          printf '%s' "$KUBECONFIG_CONTENT" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
 
-          find /tmp/frontend-prod -type f -name "*.yml" -exec sh -c '
-            envsubst < "$1" > "$1.tmp" && mv "$1.tmp" "$1"
-          ' _ {} \;
+      - name: Verify target namespace
+        run: kubectl get namespace "$TARGET_NAMESPACE"
 
-      - name: Deploy frontend stack
+      - name: Show changes
+        shell: bash
         run: |
-          kubectl apply -k /tmp/frontend-prod
+          set +e
+          kubectl diff -k "$OVERLAY_PATH"
+          diff_status=$?
+          set -e
 
-      - name: Verify rollout
-        run: |
-          kubectl rollout status deployment/lms-frontend-deployment -n lms --timeout=120s
+          if [[ "$diff_status" -gt 1 ]]; then
+            exit "$diff_status"
+          fi
+
+      - name: Apply frontend overlay
+        run: kubectl apply -k "$OVERLAY_PATH"
+
+      - name: Verify frontend rollout
+        run: kubectl rollout status deployment/title -n "$TARGET_NAMESPACE" --timeout=120s

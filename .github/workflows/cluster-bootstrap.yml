@@ -3,12 +3,8 @@ name: Initial Cluster Bootstrap
 on:
   workflow_dispatch:
     inputs:
-      target_environment:
-        description: Cluster environment to bootstrap
-        type: environment
-        required: true
       confirm_bootstrap:
-        description: Apply the cluster prerequisite manifests
+        description: Apply prerequisites to the shared Kubernetes cluster
         type: boolean
         required: true
         default: false
@@ -17,29 +13,29 @@ permissions:
   contents: read
 
 concurrency:
-  group: cluster-bootstrap-${{ inputs.target_environment }}
+  group: cluster-bootstrap-shared
   cancel-in-progress: false
 
 jobs:
   bootstrap:
-    name: Apply ${{ inputs.target_environment }} Prerequisites
+    name: Apply shared cluster prerequisites
     if: ${{ inputs.confirm_bootstrap }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    environment: ${{ inputs.target_environment }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: Setup kubectl
+      - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
       - name: Configure kubeconfig
         env:
           KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
         run: |
-          mkdir -p "$HOME/.kube"
+          test -n "$KUBECONFIG_CONTENT"
+          install -d -m 700 "$HOME/.kube"
           printf '%s' "$KUBECONFIG_CONTENT" > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
 
@@ -47,7 +43,16 @@ jobs:
         run: kubectl kustomize . > /tmp/cluster-prerequisites.yaml
 
       - name: Show changes
-        run: kubectl diff -f /tmp/cluster-prerequisites.yaml || true
+        shell: bash
+        run: |
+          set +e
+          kubectl diff -f /tmp/cluster-prerequisites.yaml
+          diff_status=$?
+          set -e
+
+          if [[ "$diff_status" -gt 1 ]]; then
+            exit "$diff_status"
+          fi
 
       - name: Apply cluster prerequisites
         run: kubectl apply -f /tmp/cluster-prerequisites.yaml
@@ -69,11 +74,9 @@ jobs:
           test "$result" = "yes"
 
       - name: Write summary
-        env:
-          TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
         run: |
           {
-            echo "## $TARGET_ENVIRONMENT cluster bootstrap completed"
+            echo "## Shared cluster bootstrap completed"
             echo
             echo '- Root Kubernetes prerequisites were reconciled.'
             echo '- The Vault reviewer Secret is populated.'
