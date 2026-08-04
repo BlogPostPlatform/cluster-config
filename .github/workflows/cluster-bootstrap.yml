@@ -39,10 +39,27 @@ jobs:
           printf '%s' "$KUBECONFIG_CONTENT" > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
 
+      - name: Show namespace changes
+        shell: bash
+        run: |
+          set +e
+          kubectl diff -f namespaces.yaml
+          diff_status=$?
+          set -e
+
+          if [[ "$diff_status" -gt 1 ]]; then
+            exit "$diff_status"
+          fi
+
+      # Namespaced resources cannot be server-side dry-run until their target
+      # namespaces exist. Reconcile namespaces before diffing the full bundle.
+      - name: Ensure target namespaces exist
+        run: kubectl apply -f namespaces.yaml
+
       - name: Render cluster prerequisites
         run: kubectl kustomize . > /tmp/cluster-prerequisites.yaml
 
-      - name: Show changes
+      - name: Show remaining changes
         shell: bash
         run: |
           set +e
