@@ -1,14 +1,22 @@
 # Vault Kubernetes authentication for the blog backend
 
 This setup assumes Vault runs **outside** the Kubernetes cluster. Vault uses a
-dedicated Kubernetes service account to call the TokenReview API. The backend,
-Celery worker, and Celery beat authenticate as a separate workload identity.
+dedicated Kubernetes service account to call the TokenReview API. Backend,
+Postgres, and Redis use separate workload identities in every environment.
+Celery worker and Celery beat share the backend identity because they run the
+same application code and need the same application secrets.
 
 | Identity | Namespace | Purpose |
 | --- | --- | --- |
 | `blog-backend` | `blog-dev` | Logs in to Vault with the `blog-backend-dev` role |
+| `blog-postgres` | `blog-dev` | Reads only `dev/postgres` |
+| `blog-redis` | `blog-dev` | Reads only `dev/redis` |
 | `blog-backend` | `blog-stage` | Logs in to Vault with the `blog-backend-stage` role |
+| `blog-postgres` | `blog-stage` | Reads only `staging/postgres` |
+| `blog-redis` | `blog-stage` | Reads only `staging/redis` |
 | `blog-backend` | `blog-prod` | Logs in to Vault with the `blog-backend-prod` role |
+| `blog-postgres` | `blog-prod` | Reads only `prod/postgres` |
+| `blog-redis` | `blog-prod` | Reads only `prod/redis` |
 | `vault-token-reviewer` | `vault-auth` | Used only by Vault to call Kubernetes TokenReview |
 
 ## 1. Apply Kubernetes prerequisites
@@ -72,24 +80,59 @@ file. Access to the Kubernetes Secret should be restricted to cluster admins.
 
 ## 3. Create least-privilege policies and roles
 
+The KV v2 engine is mounted at `blog-post`. The Kubernetes environment is named
+`stage`, while the existing Vault folder is named `staging`; the commands below
+map those names deliberately.
+
 ```sh
-vault policy write blog-backend-dev - <<'EOF'
-path "apps-kv/data/blog/dev/backend" {
+configure_environment() {
+  kubernetes_environment="$1"
+  vault_environment="$2"
+
+  # The application needs its own values plus the connection credentials for
+  # both data services. Paths are explicit so future sibling paths stay denied.
+  vault policy write "blog-backend-${kubernetes_environment}" - <<EOF
+path "blog-post/data/${vault_environment}/backend" {
+  capabilities = ["read"]
+}
+path "blog-post/data/${vault_environment}/postgres" {
+  capabilities = ["read"]
+}
+path "blog-post/data/${vault_environment}/redis" {
   capabilities = ["read"]
 }
 EOF
 
-vault write auth/kubernetes/role/blog-backend-dev \
-  bound_service_account_names=blog-backend \
-  bound_service_account_namespaces=blog-dev \
-  policies=blog-backend-dev \
-  ttl=1h
+  vault policy write "blog-postgres-${kubernetes_environment}" - <<EOF
+path "blog-post/data/${vault_environment}/postgres" {
+  capabilities = ["read"]
+}
+EOF
+
+  vault policy write "blog-redis-${kubernetes_environment}" - <<EOF
+path "blog-post/data/${vault_environment}/redis" {
+  capabilities = ["read"]
+}
+EOF
+
+  for workload in backend postgres redis; do
+    vault write "auth/kubernetes/role/blog-${workload}-${kubernetes_environment}" \
+      bound_service_account_names="blog-${workload}" \
+      bound_service_account_namespaces="blog-${kubernetes_environment}" \
+      policies="blog-${workload}-${kubernetes_environment}" \
+      ttl=1h
+  done
+}
+
+configure_environment dev dev
+configure_environment stage staging
+configure_environment prod prod
+unset -f configure_environment
 ```
 
-Repeat this pattern for `stage` and `prod`, changing all three of the policy
-name, KV path, and bound namespace. Never bind one role to `blog-*` or give a
-non-production policy access to the production KV path. Every role must bind
-both the exact service account name and exact namespace.
+This produces nine policies and nine roles. Each role binds one exact service
+account in one exact namespace. Never bind a role to `blog-*`, use a wildcard
+namespace, or give a non-production policy access to a production path.
 
 Kubernetes authentication only gives a workload a Vault identity; it does not
 place application values into the Pod. The recommended next step for this
@@ -121,8 +164,8 @@ unset BLOG_JWT
 Then deploy the backend overlay, for example
 `kubectl apply -k backend/overlays/dev`. The root prerequisite bundle must be
 applied first because Kustomize bases cannot import files above their directory.
-The backend pods receive rotating, projected `blog-backend` tokens
-automatically.
+The backend, Celery, Postgres, and Redis pods receive rotating projected tokens
+for their assigned service accounts automatically.
 
 ## Rotation and recovery
 

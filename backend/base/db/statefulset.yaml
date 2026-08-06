@@ -16,6 +16,7 @@ spec:
       labels:
         app: db
     spec:
+      serviceAccountName: blog-postgres
       containers:
         - name: postgres
           image: postgres:18
