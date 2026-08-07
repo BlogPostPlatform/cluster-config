@@ -24,10 +24,10 @@ spec:
           ports:
             - containerPort: 5432
 
-          volumesMounts:
+          volumeMounts:
            - name: postgres-data
              mountPath: /var/lib/postgresql
-             
+
           readinessProbe:
             exec:
               command:
@@ -48,7 +48,7 @@ spec:
             periodSeconds: 10
             failureThreshold: 6
 
-    volumes:
-      - name: postgres-data
-        persistedVolumeClaim:
-          claimName: db-pvc 
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: db-pvc 
