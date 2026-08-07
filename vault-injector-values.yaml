@@ -1,0 +1,14 @@
+global:
+  enabled: true
+
+server:
+  enabled: false
+
+injector:
+  enabled: true
+  externalVaultAddr: "http://79.76.124.32:8200"
+
+  replicas: 1
+
+  webhook:
+    failurePolicy: Fail
