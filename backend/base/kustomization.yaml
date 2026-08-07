@@ -15,4 +15,4 @@ resources:
 
 images:
 - name: backend-image
-  newName: ghcr.io/BlogPostPlatform/backend
+  newName: ghcr.io/blogpostplatform/backend

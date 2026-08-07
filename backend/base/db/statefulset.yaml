@@ -23,3 +23,32 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5432
+
+          volumesMounts:
+           - name: postgres-data
+             mountPath: /var/lib/postgresql
+             
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U "$(cat /vault/secrets/postgres-user)" -d "$(cat /vault/secrets/postgres-database)"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 6
+
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U "$(cat /vault/secrets/postgres-user)" -d "$(cat /vault/secrets/postgres-database)"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+
+    volumes:
+      - name: postgres-data
+        persistedVolumeClaim:
+          claimName: db-pvc 
