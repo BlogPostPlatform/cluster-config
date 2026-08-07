@@ -79,14 +79,14 @@ jobs:
           kubectl wait \
             --for=jsonpath='{.data.token}' \
             secret/vault-token-reviewer \
-            --namespace=vault-auth \
+            --namespace=vault-system \
             --timeout=60s
 
       - name: Verify reviewer authorization
         run: |
           result="$(kubectl auth can-i \
             create tokenreviews.authentication.k8s.io \
-            --as=system:serviceaccount:vault-auth:vault-token-reviewer)"
+            --as=system:serviceaccount:vault-system:vault-token-reviewer)"
 
           test "$result" = "yes"
 

@@ -16,5 +16,5 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: vault-auth
+  name: vault-system
 

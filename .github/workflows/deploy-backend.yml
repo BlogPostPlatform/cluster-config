@@ -88,6 +88,26 @@ jobs:
       - name: Render manifests
         run: kubectl kustomize "$OVERLAY_PATH" > rendered-backend.yaml
 
+      - name: Verify immutable backend images
+        shell: bash
+        run: |
+          mapfile -t backend_images < <(
+            awk '$1 == "image:" && $2 ~ /^ghcr\.io\/blogpostplatform\/backend:/ { print $2 }' \
+              rendered-backend.yaml
+          )
+
+          if [[ "${#backend_images[@]}" -ne 3 ]]; then
+            echo "Expected three rendered backend images (API, worker, and beat); found ${#backend_images[@]}." >&2
+            exit 1
+          fi
+
+          for image in "${backend_images[@]}"; do
+            if [[ ! "$image" =~ ^ghcr\.io/blogpostplatform/backend:(sha-)?[0-9a-f]{40}$ ]]; then
+              echo "Refusing mutable or invalid backend image: $image" >&2
+              exit 1
+            fi
+          done
+
       - name: Install kubeconform
         run: |
           curl --fail --silent --show-error --location \

@@ -11,4 +11,5 @@ patches:
 
 images:
 - name: backend-image
+  newName: ghcr.io/blogpostplatform/backend
   newTag: 40a3009fecc0ab74dd341978ee9f37ddf8771742

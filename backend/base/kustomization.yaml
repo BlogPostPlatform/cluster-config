@@ -12,7 +12,3 @@ resources:
   - celery/worker-deployment.yaml
   - redis/deployment.yaml
   - redis/service.yaml
-
-images:
-- name: backend-image
-  newName: ghcr.io/blogpostplatform/backend
