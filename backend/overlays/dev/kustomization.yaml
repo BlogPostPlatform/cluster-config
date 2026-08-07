@@ -12,4 +12,4 @@ patches:
 images:
 - name: backend-image
   newName: ghcr.io/blogpostplatform/backend
-  newTag: sha-0c141f7543c20f65a4a5e3b5a59d3191d0ce306a
+  newTag: sha-530475bd668c346a851354f53061d9536efbde3d
