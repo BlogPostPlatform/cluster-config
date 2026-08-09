@@ -2,9 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: blog
   labels:
     app: backend
+    vault-access: backend
 spec:
   replicas: 1
   selector:
@@ -14,11 +14,10 @@ spec:
     metadata:
       labels:
         app: backend
-        vault-access: backend
-    annotations:
-      vault.hashicorp.com/agent-inject: "true"
-      vault.hashicorp.com/auth-path: "auth/blog-post-kubernetes"
-      vault.hashicorp.com/agent-inject-token-audience: "vault"
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/auth-path: "auth/blog-post-kubernetes"
+        vault.hashicorp.com/agent-inject-token-audience: "vault"
     spec:
       serviceAccountName: blog-backend
       containers:

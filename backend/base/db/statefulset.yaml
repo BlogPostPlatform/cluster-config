@@ -2,9 +2,9 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgres
-  namespace: blog
   labels:
     app: db
+    vault-access: postgres
 spec:
   serviceName: db-service
   replicas: 1
@@ -15,11 +15,10 @@ spec:
     metadata:
       labels:
         app: db
-        vault-access: postgres
-    annotations:
-      vault.hashicorp.com/agent-inject: "true"
-      vault.hashicorp.com/auth-path: "auth/blog-post-kubernetes"
-      vault.hashicorp.com/agent-inject-token-audience: "vault"
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/auth-path: "auth/blog-post-kubernetes"
+        vault.hashicorp.com/agent-inject-token-audience: "vault"
     spec:
       serviceAccountName: blog-postgres
       containers:
