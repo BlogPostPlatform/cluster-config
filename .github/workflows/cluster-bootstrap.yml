@@ -21,7 +21,10 @@ jobs:
     name: Apply shared cluster prerequisites
     if: ${{ inputs.confirm_bootstrap }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 7
+    env:
+      VAULT_CHART_VERSION: "0.34.0"
+      EXTERNAL_VAULT_ADDR: ${{ vars.EXTERNAL_VAULT_ADDR }}
 
     steps:
       - name: Check out repository
@@ -111,6 +114,48 @@ jobs:
             --as=system:serviceaccount:vault-system:vault-token-reviewer)"
 
           test "$result" = "yes"
+      
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v3.18.6
+      
+      - name: Validate Vault configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$EXTERNAL_VAULT_ADDR"
+
+      - name: Add HashiCorp Helm repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm repo add hashicorp https://helm.releases.hashicorp.com
+          helm repo update
+      
+      - name: Reconcile Vault injector
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm upgrade --install vault hashicorp/vault \
+          --version "$VAULT_CHART_VERSION" \
+          --namespace vault-system \
+          --set-string "global.externalVaultAddr=$EXTERNAL_VAULT_ADDR" \
+          --values vault-injector-values.yaml \
+          --atomic \
+          --wait \
+          --timeout 5m
+
+      - name: Verify Vault injector
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm status vault --namespace vault-system
+          kubectl rollout status \
+            deployment/vault-agent-injector \
+            --namespace vault-system \
+            --timeout=180s
+          kubectl get mutatingwebhookconfiguration vault-agent-injector-cfg
 
       - name: Write summary
         run: |
