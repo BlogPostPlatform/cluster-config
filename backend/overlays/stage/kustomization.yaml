@@ -8,6 +8,51 @@ resources:
 
 patches:
   - path: patch-deployment.yaml
+  
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: vault-access=backend
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1role
+        value: blog-staging-backend
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-backend.env
+        value: blog-post/data/staging/backend
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-redis.env
+        value: blog-post/data/staging/redis
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-postgres.env
+        value: blog-post/data/staging/postgres
+
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: vault-access=redis
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1role
+        value: blog-staging-redis
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-redis.env
+        value: blog-post/data/staging/redis
+
+  - target:
+      group: apps
+      version: v1
+      kind: StatefulSet
+      labelSelector: vault-access=postgres
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1role
+        value: blog-staging-postgres
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-postgres.env
+        value: blog-post/data/staging/postgres
 
 images:
 - name: backend-image

@@ -12,6 +12,11 @@ spec:
     metadata:
       labels:
         app: redis
+        vault-access: redis
+    annotations:
+      vault.hashicorp.com/agent-inject: "true"
+      vault.hashicorp.com/auth-path: "auth/blog-post-kubernetes"
+      vault.hashicorp.com/agent-inject-token-audience: "vault"
     spec:
       serviceAccountName: blog-redis
       containers:
