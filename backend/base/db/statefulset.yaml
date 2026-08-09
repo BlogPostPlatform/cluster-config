@@ -25,9 +25,9 @@ spec:
         - name: postgres
           image: postgres:18
           imagePullPolicy: IfNotPresent
-          command: ["bin/sh", "-c"]
+          command: ["/bin/sh", "-c"]
           args: 
-           -|
+           - |
              set -a
              . /vault/secrets/postgres.env
              set +a
