@@ -21,12 +21,15 @@ patches:
       - op: add
         path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-backend.env
         value: blog-post/data/prod/backend
+
       - op: add
-        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-redis.env
-        value: blog-post/data/prod/redis
-      - op: add
-        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-postgres.env
-        value: blog-post/data/prod/postgres
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-template-backend.env
+        value: |
+          {{- with secret "blog-post/data/prod/backend" -}}
+          {{- range $key, $value := .Data.data }}
+          {{ $key }}={{ $value }}
+          {{- end }}
+          {{- end }}
 
   - target:
       group: apps
@@ -41,6 +44,15 @@ patches:
         path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-redis.env
         value: blog-post/data/prod/redis
 
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-template-redis.env
+        value: |
+          {{- with secret "blog-post/data/prod/redis" -}}
+          {{- range $key, $value := .Data.data }}
+          {{ $key }}={{ $value }}
+          {{- end }}
+          {{- end }}
+
   - target:
       group: apps
       version: v1
@@ -54,6 +66,14 @@ patches:
         path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-postgres.env
         value: blog-post/data/prod/postgres
 
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-template-postgres.env
+        value: |
+          {{- with secret "blog-post/data/prod/postgres" -}}
+          {{- range $key, $value := .Data.data }}
+          {{ $key }}={{ $value }}
+          {{- end }}
+          {{- end }}
 
 images:
 - name: backend-image

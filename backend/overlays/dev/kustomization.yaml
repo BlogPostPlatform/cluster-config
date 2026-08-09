@@ -18,15 +18,19 @@ patches:
       - op: add
         path: /spec/template/metadata/annotations/vault.hashicorp.com~1role
         value: blog-dev-backend
+
       - op: add
         path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-backend.env
         value: blog-post/data/dev/backend
+
       - op: add
-        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-redis.env
-        value: blog-post/data/dev/redis
-      - op: add
-        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-postgres.env
-        value: blog-post/data/dev/postgres
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-template-backend.env
+        value: |
+          {{- with secret "blog-post/data/dev/backend" -}}
+          {{- range $key, $value := .Data.data }}
+          {{ $key }}={{ $value }}
+          {{- end }}
+          {{- end }}
 
   - target:
       group: apps
@@ -41,6 +45,15 @@ patches:
         path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-redis.env
         value: blog-post/data/dev/redis
 
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-template-redis.env
+        value: |
+          {{- with secret "blog-post/data/dev/redis" -}}
+          {{- range $key, $value := .Data.data }}
+          {{ $key }}={{ $value }}
+          {{- end }}
+          {{- end }}
+
   - target:
       group: apps
       version: v1
@@ -53,6 +66,15 @@ patches:
       - op: add
         path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-postgres.env
         value: blog-post/data/dev/postgres
+
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-template-postgres.env
+        value: |
+          {{- with secret "blog-post/data/dev/postgres" -}}
+          {{- range $key, $value := .Data.data }}
+          {{ $key }}={{ $value }}
+          {{- end }}
+          {{- end }}
 
 
 images:

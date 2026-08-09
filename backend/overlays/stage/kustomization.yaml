@@ -8,7 +8,7 @@ resources:
 
 patches:
   - path: patch-deployment.yaml
-  
+
   - target:
       group: apps
       version: v1
@@ -22,11 +22,13 @@ patches:
         path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-backend.env
         value: blog-post/data/staging/backend
       - op: add
-        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-redis.env
-        value: blog-post/data/staging/redis
-      - op: add
-        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-postgres.env
-        value: blog-post/data/staging/postgres
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-template-backend.env
+        value: |
+          {{- with secret "blog-post/data/staging/backend" -}}
+          {{- range $key, $value := .Data.data }}
+          {{ $key }}={{ $value }}
+          {{- end }}
+          {{- end }}
 
   - target:
       group: apps
@@ -40,6 +42,14 @@ patches:
       - op: add
         path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-redis.env
         value: blog-post/data/staging/redis
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-template-redis.env
+        value: |
+          {{- with secret "blog-post/data/staging/redis" -}}
+          {{- range $key, $value := .Data.data }}
+          {{ $key }}={{ $value }}
+          {{- end }}
+          {{- end }}
 
   - target:
       group: apps
@@ -53,6 +63,14 @@ patches:
       - op: add
         path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-secret-postgres.env
         value: blog-post/data/staging/postgres
+      - op: add
+        path: /spec/template/metadata/annotations/vault.hashicorp.com~1agent-inject-template-postgres.env
+        value: |
+          {{- with secret "blog-post/data/staging/postgres" -}}
+          {{- range $key, $value := .Data.data }}
+          {{ $key }}={{ $value }}
+          {{- end }}
+          {{- end }}
 
 images:
 - name: backend-image
