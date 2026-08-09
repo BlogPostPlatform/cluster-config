@@ -55,6 +55,28 @@ jobs:
       # namespaces exist. Reconcile namespaces before diffing the full bundle.
       - name: Ensure target namespaces exist
         run: kubectl apply -f namespaces.yaml
+      
+      - name: Create GHCR pull secrets
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          test -n "$GHCR_USERNAME"
+          test -n "$GHCR_PULL_TOKEN"
+
+          for namespace in blog-dev blog-stage blog-prod; do
+            kubectl create secret docker-registry ghcr-pull \
+              --namespace="$namespace" \
+              --docker-server=ghcr.io \
+              --docker-username="$GHCR_USERNAME" \
+              --docker-password="$GHCR_PULL_TOKEN" \
+              --dry-run=client \
+              --output=yaml |
+              kubectl apply -f -
+          done
 
       - name: Render cluster prerequisites
         run: kubectl kustomize . > /tmp/cluster-prerequisites.yaml
