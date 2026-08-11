@@ -9,4 +9,4 @@ resources:
 images:
   - name: frontend-image
     newName: ghcr.io/blogpostplatform/frontend
-    newTag: latest
+    newTag: dev-sha-3e8068735e290781b0dacddb3b0d08eb1490b9e8-run-31540680643-1
