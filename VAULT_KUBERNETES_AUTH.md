@@ -53,11 +53,11 @@ this process; do not print them, enable shell tracing, or save them in history.
 
 ```sh
 TOKEN_REVIEWER_JWT="$(kubectl get secret vault-token-reviewer \
-  --namespace=vault-auth \
+  --namespace=vault-system \
   --output='go-template={{ index .data "token" | base64decode }}')"
 
 KUBERNETES_CA_CERT="$(kubectl get secret vault-token-reviewer \
-  --namespace=vault-auth \
+  --namespace=vault-system \
   --output='go-template={{ index .data "ca.crt" | base64decode }}')"
 
 KUBERNETES_HOST="$(kubectl config view --raw --minify \

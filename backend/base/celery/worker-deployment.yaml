@@ -26,6 +26,45 @@ spec:
           image: backend-image
           imagePullPolicy: IfNotPresent
           args: ["/app/entrypoints/worker.sh"]
+
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - >
+                  celery -A core inspect ping
+                  --destination="worker@${HOSTNAME}"
+                  --timeout=5
+                  | grep -q pong
+            periodSeconds: 5
+            timeoutSeconds: 8
+            failureThreshold: 12
+
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - >
+                  celery -A core inspect ping
+                  --destination="worker@${HOSTNAME}"
+                  --timeout=5
+                  | grep -q pong
+            periodSeconds: 15
+            timeoutSeconds: 8
+            failureThreshold: 3
+
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "kill -0 1"
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+
           resources:
             requests:
               memory: "128Mi"
