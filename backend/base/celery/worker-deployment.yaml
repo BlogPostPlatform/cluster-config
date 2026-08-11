@@ -34,7 +34,7 @@ spec:
                 - -c
                 - >
                   celery -A core inspect ping
-                  --destination="worker@${HOSTNAME}"
+                  --destination="celery@${HOSTNAME}"
                   --timeout=5
                   | grep -q pong
             periodSeconds: 5
@@ -48,7 +48,7 @@ spec:
                 - -c
                 - >
                   celery -A core inspect ping
-                  --destination="worker@${HOSTNAME}"
+                  --destination="celery@${HOSTNAME}"
                   --timeout=5
                   | grep -q pong
             periodSeconds: 15
