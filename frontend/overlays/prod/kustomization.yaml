@@ -5,3 +5,8 @@ namespace: blog-prod
 
 resources:
   - ../../base
+
+images:
+  - name: frontend-image
+    newName: ghcr.io/blogpostplatform/frontend
+    newTag: latest
