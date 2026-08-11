@@ -183,4 +183,4 @@ jobs:
         run: kubectl apply -k "$OVERLAY_PATH"
 
       - name: Verify frontend rollout
-        run: kubectl rollout status deployment/title -n "$TARGET_NAMESPACE" --timeout=120s
+        run: kubectl rollout status deployment/frontend -n "$TARGET_NAMESPACE" --timeout=120s
