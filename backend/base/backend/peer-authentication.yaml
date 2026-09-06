@@ -9,6 +9,6 @@ spec:
       app: backend
   mtls:
     mode: STRICT
-  portLevelMtls:
-    8000:
-      mode: PERMISSIVE
+    portLevelMtls:
+      8000:
+        mode: PERMISSIVE
