@@ -10,5 +10,5 @@ spec:
   mtls:
     mode: STRICT
     portLevelMtls:
-      80:
+      "80":
         mode: PERMISSIVE
