@@ -9,6 +9,6 @@ spec:
       app: frontend
   mtls:
     mode: STRICT
-    portLevelMtls:
-      "80":
-        mode: PERMISSIVE
+  portLevelMtls:
+    "80":
+      mode: PERMISSIVE
