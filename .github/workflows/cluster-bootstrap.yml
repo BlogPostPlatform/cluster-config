@@ -157,6 +157,29 @@ jobs:
             --timeout=180s
           kubectl get mutatingwebhookconfiguration vault-agent-injector-cfg
 
+      - name: Add Istio Helm repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm repo add istio https://istio-release.storage.googleapis.com/charts
+          helm repo update
+
+      - name: Install Istio base and istiod
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm upgrade --install istio-base istio/base \
+            --namespace istio-system \
+            --create-namespace \
+            --atomic \
+            --wait \
+            --timeout 5m
+          helm upgrade --install istiod istio/istiod \
+            --namespace istio-system \
+            --atomic \
+            --wait \
+            --timeout 5m
+
       - name: Write summary
         run: |
           {

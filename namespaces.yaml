@@ -2,16 +2,22 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: blog-dev
+  labels:
+    istio-injection: enabled
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: blog-stage
+  labels:
+    istio-injection: enabled
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: blog-prod
+  labels:
+    istio-injection: enabled
 ---
 apiVersion: v1
 kind: Namespace

@@ -1,0 +1,14 @@
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: frontend-ingress
+  namespace: blog-dev
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    80:
+      mode: PERMISSIVE

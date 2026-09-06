@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: celery-worker
   labels:
+    app: celery-worker
     vault-access: backend
 spec:
   replicas: 1

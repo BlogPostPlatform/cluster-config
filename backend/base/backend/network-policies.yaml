@@ -1,0 +1,54 @@
+##################### Kubernetes Network Policy for Backend ####################
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traefik-to-backend
+  namespace: blog-dev
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+
+#################### Istio Authorization Policy for Backend ####################
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: backend-only-frontend
+  namespace: blog-dev
+spec:
+  selector:
+    matchLabels:
+      app: backend
+
+  action: ALLOW
+
+  rules:
+    - from:
+        - source:
+            serviceAccounts:
+              - blog-frontend
+      to:
+        - operation:
+            ports:
+              - "8000"
+    - to:
+        - operation:
+            ports:
+              - "8000"

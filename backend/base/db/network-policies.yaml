@@ -1,0 +1,56 @@
+##################### Kubernetes Network Policy for Postgres ####################
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-ingress
+  namespace: blog-dev
+spec:
+  podSelector:
+    matchLabels:
+      app: db
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: backend
+
+        - podSelector:
+            matchLabels:
+              app: celery
+              component: worker
+        - podSelector:
+            matchLabels:
+              app: celery
+              component: beat
+
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+
+#################### Istio Authorization Policy for Postgres ####################
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: postgres-only-backend
+  namespace: blog-dev
+spec:
+  selector:
+    matchLabels:
+      app: db
+
+  action: ALLOW
+
+  rules:
+    - from:
+        - source:
+            serviceAccounts:
+              - blog-backend
+      to:
+        - operation:
+            ports:
+              - "5432"

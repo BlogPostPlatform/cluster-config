@@ -5,6 +5,7 @@ metadata:
   namespace: blog
   labels:
     vault-access: redis
+    app: redis
 spec:
   replicas: 1
   selector:

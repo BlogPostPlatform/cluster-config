@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: celery-beat
   labels:
+    app: celery-beat
     vault-access: backend
 
 spec:
